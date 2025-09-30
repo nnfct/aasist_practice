@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>수강생 대시보드 데모</title>
+  <style>
+    :root{
+      --bg:#0b0f14;           /* dark default */
+      --panel:#121822;
+      --muted:#6b7c93;
+      --text:#e8edf4;
+      --brand:#4f8cff;
+      --brand-2:#5eead4;
+      --ok:#22c55e; --warn:#f59e0b; --danger:#ef4444;
+      --ring: 0 0 0 2px color-mix(in lab, var(--brand) 50%, transparent);
+      --card-radius: 16px;
+      --shadow: 0 8px 24px rgba(0,0,0,.25);
+    }
+    /* light theme vars will override via [data-theme="light"] on html */
+    html[data-theme="light"]{
+      --bg:#f6f7fb; --panel:#ffffff; --muted:#6b7280; --text:#0b1220; --shadow:0 8px 24px rgba(2,6,23,.08);
+    }
+    * { box-sizing: border-box; }
+    body{ margin:0; background:var(--bg); color:var(--text); font:14px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", Arial, "Apple SD Gothic Neo", sans-serif; }
+    a{ color:inherit; text-decoration:none }
+
+    .layout{ display:grid; grid-template-columns:260px 1fr; min-height:100dvh; }
+    .sidebar{ position:sticky; top:0; height:100dvh; background:linear-gradient(180deg, #0f172a, var(--panel)); padding:24px 16px; border-right:1px solid rgba(255,255,255,.06); }
+    .logo{ display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.5px; }
+    .logo-badge{ width:28px; height:28px; border-radius:10px; background:linear-gradient(135deg,var(--brand),var(--brand-2)); display:grid; place-items:center; color:#0b1220; font-weight:900; }
+    .nav{ margin-top:24px; display:flex; flex-direction:column; gap:6px; }
+    .nav a{ padding:10px 12px; border-radius:10px; color:var(--muted); display:flex; align-items:center; gap:10px; }
+    .nav a.active, .nav a:hover{ background:rgba(79,140,255,.12); color:#cfe1ff }
+    .nav .pill{ margin-left:auto; font-size:12px; padding:2px 8px; border-radius:999px; background:#1f2937; color:#cbd5e1; }
+
+    header.appbar{ display:flex; align-items:center; justify-content:space-between; padding:16px 20px; position:sticky; top:0; background:color-mix(in lab, var(--bg) 80%, transparent); backdrop-filter: blur(10px); z-index:10; border-bottom:1px solid rgba(255,255,255,.06); }
+    .search{ display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid rgba(255,255,255,.06); padding:8px 12px; border-radius:12px; width:min(520px, 55vw); }
+    .search input{ flex:1; background:transparent; border:0; outline:0; color:var(--text); font:inherit; }
+
+    .toolbar{ display:flex; align-items:center; gap:10px; }
+    .btn{ border:1px solid rgba(255,255,255,.08); background:var(--panel); color:var(--text); padding:8px 12px; border-radius:10px; cursor:pointer; }
+    .btn.primary{ background:linear-gradient(135deg, var(--brand), color-mix(in lab, var(--brand) 30%, #000)); border-color:transparent; }
+
+    .main{ padding:20px; display:grid; gap:16px; }
+
+    .grid{ display:grid; gap:16px; }
+    .grid.cols-4{ grid-template-columns: repeat(4, 1fr); }
+    .grid.cols-3{ grid-template-columns: 2fr 1fr 1fr; }
+    .grid.cols-2{ grid-template-columns: 1.6fr 1fr; }
+    @media (max-width: 1200px){ .layout{ grid-template-columns: 88px 1fr } .nav a span{ display:none } .nav .pill{ display:none } }
+    @media (max-width: 960px){ .grid.cols-4{ grid-template-columns: repeat(2,1fr) } .grid.cols-3, .grid.cols-2{ grid-template-columns: 1fr } header.appbar{ position:static } }
+
+    .card{ background:var(--panel); border-radius:var(--card-radius); box-shadow:var(--shadow); padding:16px; border:1px solid rgba(255,255,255,.06); }
+    .card h3{ margin:0 0 6px; font-size:14px; color:#cbd5e1 }
+    .kpi{ display:flex; align-items:flex-end; justify-content:space-between; }
+    .kpi .value{ font-size:28px; font-weight:800; letter-spacing:.3px; }
+    .kpi .delta{ font-size:12px; padding:3px 8px; border-radius:999px; }
+    .delta.up{ background:rgba(34,197,94,.15); color:#86efac }
+    .delta.down{ background:rgba(239,68,68,.15); color:#fecaca }
+
+    .progress{ height:10px; background:#111827; border-radius:999px; overflow:hidden; position:relative; }
+    .progress > i{ display:block; height:100%; background:linear-gradient(90deg, var(--brand), var(--brand-2)); width:0 }
+
+    .table{ width:100%; border-collapse:collapse; font-size:13px; }
+    .table th, .table td{ padding:10px 8px; border-bottom:1px dashed rgba(148,163,184,.2) }
+    .table th{ text-align:left; color:#93a3b8; font-weight:600; }
+    .status{ font-size:12px; padding:4px 8px; border-radius:999px; }
+    .status.in{ background:rgba(79,140,255,.15); color:#a7c5ff }
+    .status.done{ background:rgba(34,197,94,.15); color:#86efac }
+    .status.late{ background:rgba(239,68,68,.15); color:#fecaca }
+
+    .row{ display:flex; gap:16px; align-items:stretch }
+    .flex-1{ flex:1 }
+
+    .mini-title{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px }
+    .muted{ color:var(--muted) }
+
+    .pill-filter{ display:flex; gap:6px; flex-wrap:wrap }
+    .pill-filter button{ padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.08); background:transparent; color:var(--text); cursor:pointer; }
+    .pill-filter button.active{ background:rgba(79,140,255,.18) }
+
+    .list{ display:flex; flex-direction:column; gap:10px }
+    .list .item{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px; border:1px solid rgba(255,255,255,.06); border-radius:12px; }
+
+    /* simple badge avatars */
+    .avatar{ width:28px; height:28px; border-radius:8px; display:grid; place-items:center; font-size:12px; font-weight:800; background:#111827 }
+
+    .chart{ width:100%; height:140px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo"><div class="logo-badge">ED</div><span>EduDash</span></div>
+      <nav class="nav">
+        <a href="#" class="active">🏠 <span>대시보드</span></a>
+        <a href="#">📚 <span>강의</span><span class="pill">6</span></a>
+        <a href="#">📝 <span>과제</span><span class="pill">2</span></a>
+        <a href="#">📊 <span>성적</span></a>
+        <a href="#">✅ <span>출석</span></a>
+        <a href="#">🔔 <span>알림</span><span class="pill">3</span></a>
+        <a href="#" id="themeToggle">🌓 <span>라이트/다크</span></a>
+      </nav>
+    </aside>
+
+    <section>
+      <header class="appbar">
+        <div class="search">
+          <span>🔎</span>
+          <input id="searchInput" placeholder="강의, 과제, 공지를 검색…" />
+        </div>
+        <div class="toolbar">
+          <button class="btn" id="syncBtn">동기화</button>
+          <button class="btn primary">새 노트</button>
+          <div class="avatar" title="거노">G</div>
+        </div>
+      </header>
+
+      <main class="main">
+        <!-- KPI -->
+        <div class="grid cols-4">
+          <div class="card">
+            <h3>총 수강 과목</h3>
+            <div class="kpi"><div class="value" id="kpi-courses">6</div><span class="delta up">+1 과목</span></div>
+            <div class="muted">이번 학기</div>
+          </div>
+          <div class="card">
+            <h3>평균 점수</h3>
+            <div class="kpi"><div class="value" id="kpi-grade">88.4</div><span class="delta up">▲ 2.1</span></div>
+            <div class="progress" aria-label="성적 향상" title="88%">
+              <i style="width:88%"></i>
+            </div>
+          </div>
+          <div class="card">
+            <h3>출석률</h3>
+            <div class="kpi"><div class="value" id="kpi-att">96%</div><span class="delta up">+3%</span></div>
+            <div class="muted">지각 1회, 결석 0회</div>
+          </div>
+          <div class="card">
+            <h3>과제 진행률</h3>
+            <div class="kpi"><div class="value" id="kpi-task">72%</div><span class="delta down">-4%</span></div>
+            <div class="progress"><i style="width:72%"></i></div>
+          </div>
+        </div>
+
+        <!-- Progress by Course + Announcements + Grade chart -->
+        <div class="grid cols-3">
+          <div class="card">
+            <div class="mini-title"><h3>과목별 진행상황</h3><span class="muted" id="courseCount">6 과목</span></div>
+            <div class="list" id="courseProgress">
+              <!-- injected by JS -->
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="mini-title"><h3>공지</h3><a class="muted" href="#">전체 보기 →</a></div>
+            <div class="list" id="news">
+              <!-- injected by JS -->
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="mini-title"><h3>성적 분포</h3><span class="muted">최근 퀴즈 10회</span></div>
+            <svg class="chart" id="gradeChart" viewBox="0 0 300 140" preserveAspectRatio="none" aria-label="성적 분포 차트"></svg>
+          </div>
+        </div>
+
+        <!-- Assignments & Schedule -->
+        <div class="grid cols-2">
+          <div class="card">
+            <div class="mini-title">
+              <h3>과제</h3>
+              <div class="pill-filter" id="statusFilter">
+                <button data-status="all" class="active">전체</button>
+                <button data-status="in">진행중</button>
+                <button data-status="done">제출완료</button>
+                <button data-status="late">지연</button>
+              </div>
+            </div>
+            <table class="table" id="assignmentTable">
+              <thead>
+                <tr><th>과제명</th><th>과목</th><th>마감</th><th>상태</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="mini-title"><h3>다가오는 일정</h3><span class="muted">이번 주</span></div>
+            <div class="list" id="schedule">
+              <!-- injected by JS -->
+            </div>
+          </div>
+        </div>
+      </main>
+    </section>
+  </div>
+
+  <script>
+    // --- Theme ---
+    const htmlEl = document.documentElement;
+    const saved = localStorage.getItem('theme');
+    if(saved){ htmlEl.setAttribute('data-theme', saved); }
+    document.getElementById('themeToggle').addEventListener('click', e=>{
+      e.preventDefault();
+      const next = htmlEl.getAttribute('data-theme') === 'light' ? '' : 'light';
+      if(next) htmlEl.setAttribute('data-theme', next); else htmlEl.removeAttribute('data-theme');
+      localStorage.setItem('theme', next);
+    });
+
+    // --- Mock Data ---
+    const courses = [
+      { name:'데이터 분석 입문', progress: 0.92, teacher:'김지훈' },
+      { name:'파이썬 프로그래밍', progress: 0.78, teacher:'최윤아' },
+      { name:'통계학 기초', progress: 0.66, teacher:'한도현' },
+      { name:'SQL & DB', progress: 0.54, teacher:'박서연' },
+      { name:'시각화 프로젝트', progress: 0.38, teacher:'오민수' },
+      { name:'머신러닝 개론', progress: 0.21, teacher:'이가영' },
+    ];
+
+    const announcements = [
+      { title:'중간고사 범위 공지', time:'1시간 전', tag:'시험' },
+      { title:'프로젝트 1차 피드백 반영', time:'어제', tag:'프로젝트' },
+      { title:'SQL 실습 데이터셋 변경', time:'2일 전', tag:'실습' },
+    ];
+
+    const assignments = [
+      { title:'판다스 과제 #2', course:'파이썬 프로그래밍', due:'10/02 23:59', status:'in' },
+      { title:'집중강의 퀴즈', course:'통계학 기초', due:'10/01 18:00', status:'late' },
+      { title:'ERD 설계 초안', course:'SQL & DB', due:'10/04 23:59', status:'in' },
+      { title:'시각화 대시보드 v1 제출', course:'시각화 프로젝트', due:'10/06 23:59', status:'in' },
+      { title:'중간고사 대비 문제집', course:'데이터 분석 입문', due:'10/07 12:00', status:'done' },
+    ];
+
+    const schedule = [
+      { when:'화 10:00', what:'통계학 기초 (B201)', type:'class' },
+      { when:'수 14:00', what:'프로젝트 스탠드업', type:'meet' },
+      { when:'목 11:00', what:'SQL 실습', type:'lab' },
+      { when:'금 16:00', what:'머신러닝 개론', type:'class' },
+    ];
+
+    const recentGrades = [78, 82, 75, 88, 92, 85, 91, 87, 94, 90];
+
+    // --- Helpers ---
+    function pill(text){ return `<span class="pill">${text}</span>` }
+
+    function renderCourseProgress(){
+      const box = document.getElementById('courseProgress');
+      box.innerHTML = courses.map(c=>{
+        const pct = Math.round(c.progress*100);
+        return `
+          <div class="item">
+            <div style="display:flex; align-items:center; gap:10px; flex:1">
+              <div class="avatar" aria-hidden="true">${c.name.slice(0,1)}</div>
+              <div style="flex:1">
+                <div style="display:flex; justify-content:space-between; gap:10px;">
+                  <strong>${c.name}</strong>
+                  <span class="muted">${pct}%</span>
+                </div>
+                <div class="progress" style="margin-top:8px"><i style="width:${pct}%"></i></div>
+                <div class="muted" style="margin-top:6px">담당: ${c.teacher}</div>
+              </div>
+            </div>
+            <a class="muted" href="#">바로가기 →</a>
+          </div>`
+      }).join('');
+      document.getElementById('courseCount').textContent = `${courses.length} 과목`;
+    }
+
+    function renderNews(){
+      const box = document.getElementById('news');
+      box.innerHTML = announcements.map(a=>`
+        <div class="item">
+          <div style="display:flex; align-items:center; gap:10px">
+            <div class="avatar" style="background:#0f766e">${a.tag.slice(0,1)}</div>
+            <div>
+              <strong>${a.title}</strong>
+              <div class="muted">${a.time} • ${a.tag}</div>
+            </div>
+          </div>
+          <a class="muted" href="#">자세히</a>
+        </div>
+      `).join('');
+    }
+
+    function renderAssignments(filter='all', query=''){
+      const tbody = document.querySelector('#assignmentTable tbody');
+      let rows = assignments.filter(a => (filter==='all'||a.status===filter) && (a.title+" "+a.course).toLowerCase().includes(query.toLowerCase()));
+      if(rows.length===0){
+        tbody.innerHTML = `<tr><td colspan="4" class="muted">조건에 맞는 과제가 없습니다.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = rows.map(a=>{
+        const statusClass = {in:'in', done:'done', late:'late'}[a.status];
+        const statusText = {in:'진행중', done:'제출완료', late:'지연'}[a.status];
+        return `<tr>
+          <td><strong>${a.title}</strong></td>
+          <td>${a.course}</td>
+          <td>${a.due}</td>
+          <td><span class="status ${statusClass}">${statusText}</span></td>
+        </tr>`
+      }).join('');
+    }
+
+    function renderSchedule(){
+      const box = document.getElementById('schedule');
+      box.innerHTML = schedule.map(s=>`
+        <div class="item">
+          <div>
+            <strong>${s.when}</strong>
+            <div class="muted">${s.what}</div>
+          </div>
+          <span class="status ${s.type==='class'?'in':s.type==='lab'?'done':'late'}">${s.type}</span>
+        </div>
+      `).join('');
+    }
+
+    function renderGradeChart(){
+      const svg = document.getElementById('gradeChart');
+      const w = 300, h = 140, pad = 18;
+      const max = 100; const n = recentGrades.length; const gap = 6; const barW = (w - pad*2 - gap*(n-1)) / n;
+      // Axes
+      svg.innerHTML = `<rect x="0" y="0" width="100%" height="100%" rx="12" ry="12" fill="none" stroke="rgba(255,255,255,.06)" />`;
+      // grid lines
+      [60, 80, 100].forEach(val=>{
+        const y = h - pad - (val/max)*(h - pad*2);
+        svg.insertAdjacentHTML('beforeend', `<line x1="${pad}" y1="${y}" x2="${w-pad}" y2="${y}" stroke="rgba(148,163,184,.25)" stroke-dasharray="4,6" />`);
+        svg.insertAdjacentHTML('beforeend', `<text x="${w-pad}" y="${y-4}" fill="var(--muted)" font-size="10" text-anchor="end">${val}</text>`);
+      });
+      // bars
+      recentGrades.forEach((v,i)=>{
+        const x = pad + i*(barW+gap);
+        const bh = (v/max)*(h - pad*2);
+        const y = h - pad - bh;
+        const fill = v>=90? 'rgba(34,197,94,.8)': v>=80? 'rgba(79,140,255,.8)': 'rgba(245,158,11,.85)';
+        svg.insertAdjacentHTML('beforeend', `<rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="6" fill="${fill}" />`);
+      });
+    }
+
+    // Filters & Search
+    const filterBox = document.getElementById('statusFilter');
+    let currentFilter = 'all';
+    filterBox.addEventListener('click', (e)=>{
+      if(e.target.tagName!== 'BUTTON') return;
+      [...filterBox.children].forEach(b=>b.classList.remove('active'));
+      e.target.classList.add('active');
+      currentFilter = e.target.dataset.status;
+      renderAssignments(currentFilter, document.getElementById('searchInput').value);
+    });
+
+    document.getElementById('searchInput').addEventListener('input', (e)=>{
+      const q = e.target.value;
+      renderAssignments(currentFilter, q);
+    });
+
+    document.getElementById('syncBtn').addEventListener('click', ()=>{
+      // simple demo pulse
+      const btn = document.getElementById('syncBtn');
+      btn.textContent = '동기화 완료 ✅';
+      setTimeout(()=> btn.textContent = '동기화', 1400);
+    });
+
+    // Initial render
+    renderCourseProgress();
+    renderNews();
+    renderAssignments();
+    renderSchedule();
+    renderGradeChart();
+  </script>
+</body>
+</html>
